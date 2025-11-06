@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 
 namespace Match3
@@ -32,6 +32,31 @@ namespace Match3
 
             Vector3 startPos = transform.position;
             Vector3 endPos = _piece.GameGridRef.GetWorldPosition(newX, newY);
+
+            for (float t = 0; t <= 1 * time; t += Time.deltaTime)
+            {
+                _piece.transform.position = Vector3.Lerp(startPos, endPos, t / time);
+                yield return null;
+            }
+
+            _piece.transform.position = endPos;
+        }
+
+        public void ReturnToPosition(float time)
+        {
+            if (_moveCoroutine != null)
+            {
+                StopCoroutine(_moveCoroutine);
+            }
+
+            _moveCoroutine = ReturnCoroutine(time);
+            StartCoroutine(_moveCoroutine);
+        }
+
+        private IEnumerator ReturnCoroutine(float time)
+        {
+            Vector3 startPos = transform.position;
+            Vector3 endPos = _piece.GameGridRef.GetWorldPosition(_piece.X, _piece.Y);
 
             for (float t = 0; t <= 1 * time; t += Time.deltaTime)
             {

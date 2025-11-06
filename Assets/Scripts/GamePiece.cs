@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace Match3
 {
@@ -20,7 +20,7 @@ namespace Match3
             get => _y;
             set { if (IsMovable()) { _y = value; } }
         }
-    
+
         private PieceType _type;
 
         public PieceType Type => _type;
@@ -41,6 +41,8 @@ namespace Match3
 
         public ClearablePiece ClearableComponent => _clearableComponent;
 
+        private Vector3 _dragStartPos;
+
         private void Awake()
         {
             _movableComponent = GetComponent<MovablePiece>();
@@ -58,9 +60,52 @@ namespace Match3
 
         private void OnMouseEnter() => _gameGrid.EnterPiece(this);
 
-        private void OnMouseDown() => _gameGrid.PressPiece(this);
+        private void OnMouseDown()
+        {
+            _dragStartPos = transform.position;
+            _gameGrid.PressPiece(this);
+        }
 
         private void OnMouseUp() => _gameGrid.ReleasePiece();
+
+        private void OnMouseDrag()
+        {
+            if (_gameGrid.IsFilling) return;
+
+            // Convert mouse position to world space
+            Vector3 mousePos = Input.mousePosition;
+            mousePos.z = Camera.main.nearClipPlane; // Set z to near clip plane for screen to world conversion
+            Vector3 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
+            worldPos.z = 0; // Assuming 2D game, set z to 0
+
+            // Calculate drag delta
+            Vector3 dragDelta = worldPos - _dragStartPos;
+
+            // Determine primary drag direction (horizontal or vertical)
+            bool isHorizontal = Mathf.Abs(dragDelta.x) > Mathf.Abs(dragDelta.y);
+
+            // Restrict movement to the primary axis
+            if (isHorizontal)
+            {
+                worldPos.y = _dragStartPos.y; // Lock Y to start position
+            }
+            else
+            {
+                worldPos.x = _dragStartPos.x; // Lock X to start position
+            }
+
+            // Get grid bounds
+            Vector2 gridMin = _gameGrid.GetWorldPosition(0, _gameGrid.yDim - 1);
+            Vector2 gridMax = _gameGrid.GetWorldPosition(_gameGrid.xDim - 1, 0);
+
+            // Clamp position within grid bounds, but allow slight overhang for adjacent pieces
+            float cellSize = 1.0f; // Assuming cell size is 1 unit
+            worldPos.x = Mathf.Clamp(worldPos.x, gridMin.x - cellSize, gridMax.x + cellSize);
+            worldPos.y = Mathf.Clamp(worldPos.y, gridMin.y - cellSize, gridMax.y + cellSize);
+
+            // Move piece to clamped position
+            transform.position = worldPos;
+        }
 
         public bool IsMovable() => _movableComponent != null;
 

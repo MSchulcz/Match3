@@ -24,6 +24,7 @@ namespace Match3
         public int xDim;
         public int yDim;
         public float fillTime;
+        public float hintDelay = 10f; // Time in seconds before showing hint
 
         public Level level;
 
@@ -40,10 +41,17 @@ namespace Match3
 
         private GamePiece _pressedPiece;
         private GamePiece _enteredPiece;
+        private GamePiece _draggedPiece;
+        private Vector3 _dragStartPos;
+        private Vector2 _dragDirection;
 
         private bool _gameOver;
 
         public bool IsFilling { get; private set; }
+
+        private float _hintTimer;
+        private GamePiece _hintedPiece;
+        private Coroutine _hintCoroutine;
 
         private void Awake()
         {
@@ -86,11 +94,91 @@ namespace Match3
                     if (_pieces[x, y] == null)
                     {
                         SpawnNewPiece(x, y, PieceType.Empty);
-                    }                
+                    }
                 }
             }
 
             StartCoroutine(Fill());
+        }
+
+        private void Update()
+        {
+            if (_gameOver || IsFilling) return;
+
+            _hintTimer += Time.deltaTime;
+
+            if (_hintTimer >= hintDelay && _hintedPiece == null)
+            {
+                FindHint();
+            }
+        }
+
+        private void FindHint()
+        {
+            for (int x = 0; x < xDim; x++)
+            {
+                for (int y = 0; y < yDim; y++)
+                {
+                    GamePiece piece = _pieces[x, y];
+                    if (!piece.IsMovable()) continue;
+
+                    // Check adjacent pieces
+                    int[] dx = { 0, 1, 0, -1 };
+                    int[] dy = { 1, 0, -1, 0 };
+
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = x + dx[d];
+                        int ny = y + dy[d];
+
+                        if (nx >= 0 && nx < xDim && ny >= 0 && ny < yDim)
+                        {
+                            GamePiece adj = _pieces[nx, ny];
+                            if (adj.IsMovable())
+                            {
+                                // Simulate swap
+                                _pieces[x, y] = adj;
+                                _pieces[nx, ny] = piece;
+
+                                if (HasValidMatches())
+                                {
+                                    // Found a possible move
+                                    _hintedPiece = piece;
+                                    // Start hint animation
+                                    _hintCoroutine = StartCoroutine(HintAnimation(piece));
+                                    // Swap back
+                                    _pieces[x, y] = piece;
+                                    _pieces[nx, ny] = adj;
+                                    return;
+                                }
+
+                                // Swap back
+                                _pieces[x, y] = piece;
+                                _pieces[nx, ny] = adj;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private bool HasValidMatches()
+        {
+            for (int y = 0; y < yDim; y++)
+            {
+                for (int x = 0; x < xDim; x++)
+                {
+                    if (!_pieces[x, y].IsClearable()) continue;
+
+                    List<GamePiece> match = GetMatch(_pieces[x, y], x, y);
+
+                    if (match != null)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         private IEnumerator Fill()
@@ -290,6 +378,16 @@ namespace Match3
                 _pressedPiece = null;
                 _enteredPiece = null;
 
+                // Reset hint
+                _hintTimer = 0;
+                if (_hintCoroutine != null)
+                {
+                    StopCoroutine(_hintCoroutine);
+                    _hintCoroutine = null;
+                    _hintedPiece.transform.rotation = Quaternion.identity;
+                    _hintedPiece = null;
+                }
+
                 StartCoroutine(Fill());
 
                 level.OnMove();
@@ -301,16 +399,67 @@ namespace Match3
             }
         }
 
-        public void PressPiece(GamePiece piece) => _pressedPiece = piece;
+        public void PressPiece(GamePiece piece)
+        {
+            _pressedPiece = piece;
+            _draggedPiece = piece;
+            _dragStartPos = piece.transform.position;
+            _dragDirection = Vector2.zero;
+        }
 
         public void EnterPiece(GamePiece piece) => _enteredPiece = piece;
 
         public void ReleasePiece()
         {
-            if (IsAdjacent (_pressedPiece, _enteredPiece))
+            if (_draggedPiece == null) return;
+
+            Vector3 dragDelta = _draggedPiece.transform.position - _dragStartPos;
+            float distance = dragDelta.magnitude;
+
+            // Determine direction
+            if (Mathf.Abs(dragDelta.x) > Mathf.Abs(dragDelta.y))
             {
-                SwapPieces(_pressedPiece, _enteredPiece);
+                _dragDirection = dragDelta.x > 0 ? Vector2.right : Vector2.left;
             }
+            else
+            {
+                _dragDirection = dragDelta.y > 0 ? Vector2.up : Vector2.down;
+            }
+
+            // Check if dragged far enough (e.g., 50% of cell size)
+            float cellSize = 1.0f; // Assuming cell size is 1 unit
+            if (distance >= cellSize * 0.5f)
+            {
+                // Try to swap with adjacent piece in drag direction
+                int targetX = _draggedPiece.X + (int)_dragDirection.x;
+                int targetY = _draggedPiece.Y - (int)_dragDirection.y; // Y inverted in grid
+
+                if (targetX >= 0 && targetX < xDim && targetY >= 0 && targetY < yDim)
+                {
+                    GamePiece targetPiece = _pieces[targetX, targetY];
+                    if (targetPiece.IsMovable())
+                    {
+                        SwapPieces(_draggedPiece, targetPiece);
+                    }
+                    else
+                    {
+                        _draggedPiece.MovableComponent.ReturnToPosition(fillTime);
+                    }
+                }
+                else
+                {
+                    _draggedPiece.MovableComponent.ReturnToPosition(fillTime);
+                }
+            }
+            else
+            {
+                // Return to original position
+                _draggedPiece.MovableComponent.ReturnToPosition(fillTime);
+            }
+
+            // Reset drag state
+            _draggedPiece = null;
+            _dragDirection = Vector2.zero;
         }
 
         private bool ClearAllValidMatches()
@@ -655,7 +804,6 @@ namespace Match3
         public List<GamePiece> GetPiecesOfType(PieceType type)
         {
             var piecesOfType = new List<GamePiece>();
-
             for (int x = 0; x < xDim; x++)
             {
                 for (int y = 0; y < yDim; y++)
@@ -668,6 +816,37 @@ namespace Match3
             }
 
             return piecesOfType;
+        }
+
+        private IEnumerator HintAnimation(GamePiece piece)
+        {
+            float angle = 15f; // Degrees to rotate
+            float duration = 0.5f; // Time for one direction
+
+            while (true)
+            {
+                // Rotate to the right
+                Quaternion startRotation = piece.transform.rotation;
+                Quaternion endRotation = Quaternion.Euler(0, 0, angle);
+                float elapsed = 0f;
+                while (elapsed < duration)
+                {
+                    elapsed += Time.deltaTime;
+                    piece.transform.rotation = Quaternion.Lerp(startRotation, endRotation, elapsed / duration);
+                    yield return null;
+                }
+
+                // Rotate back to left
+                startRotation = piece.transform.rotation;
+                endRotation = Quaternion.Euler(0, 0, -angle);
+                elapsed = 0f;
+                while (elapsed < duration)
+                {
+                    elapsed += Time.deltaTime;
+                    piece.transform.rotation = Quaternion.Lerp(startRotation, endRotation, elapsed / duration);
+                    yield return null;
+                }
+            }
         }
 
     }
