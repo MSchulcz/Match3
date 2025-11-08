@@ -1,18 +1,12 @@
-# TODO: Реализация реалистичного сдвига фишек
+# TODO: Implement Click Activation for Special Pieces
 
-- [x] Добавить метод ReturnToPosition в MovablePiece.cs для возврата фишки на место без изменения X/Y
-- [x] В GameGrid.cs добавить переменные: _draggedPiece, _dragStartPos, _dragDirection
-- [x] Изменить PressPiece в GameGrid.cs: установить _draggedPiece и _dragStartPos
-- [x] Изменить ReleasePiece в GameGrid.cs: логика обмена или возврата на основе расстояния
-- [x] В GamePiece.cs добавить OnMouseDrag: перемещение за мышью с ограничениями
-- [x] Тестирование: проверить следование за мышью, обмен при достаточном сдвиге, возврат при недостаточном
+## Overview
+Modify special pieces (RowClear, ColumnClear, Rainbow) to activate on click instead of automatically during matches. Create a new component for handling activation.
 
-# TODO: Реализация системы подсказок
-
-- [x] Добавить переменные: _hintTimer, _hintedPiece, hintDelay, _hintCoroutine
-- [x] Добавить Update метод: инкремент _hintTimer, вызов FindHint если таймер превысил hintDelay и нет подсказки
-- [x] Реализовать FindHint: симуляция свапов с соседними фишками, проверка на валидные матчи, запуск анимации
-- [x] Реализовать HasValidMatches: проверка наличия валидных матчей на доске
-- [x] Реализовать HintAnimation: анимация вращения фишки влево-вправо
-- [x] Сброс подсказки в SwapPieces: остановка корутины, сброс вращения и таймера при совершении хода
-- [x] Тестирование: проверить появление подсказки через 10 секунд бездействия, анимацию вращения
+## Tasks
+- [ ] Create ActivatablePiece.cs component for click handling
+- [ ] Modify GamePiece.cs to handle clicks for special pieces
+- [ ] Update ClearLinePiece.cs to add Activate() method
+- [ ] Update ClearColorPiece.cs to add Activate() method
+- [ ] Modify GameGrid.cs SwapPieces() to remove auto-clear for RowClear/ColumnClear
+- [ ] Test click activation functionality

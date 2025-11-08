@@ -10,5 +10,12 @@
 
             piece.GameGridRef.ClearColor(Color);
         }
+
+        public void Activate()
+        {
+            piece.GameGridRef.ClearColor(Color);
+            // Clear the piece itself after activation
+            piece.GameGridRef.ClearPiece(piece.X, piece.Y);
+        }
     }
 }

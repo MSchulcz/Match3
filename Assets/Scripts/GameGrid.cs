@@ -732,7 +732,7 @@ namespace Match3
             return null;
         }
 
-        private bool ClearPiece(int x, int y)
+        public bool ClearPiece(int x, int y)
         {
             if (!_pieces[x, y].IsClearable() || _pieces[x, y].ClearableComponent.IsBeingCleared) return false;
         

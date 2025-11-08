@@ -41,13 +41,19 @@ namespace Match3
 
         public ClearablePiece ClearableComponent => _clearableComponent;
 
+        private ActivatablePiece _activatableComponent;
+
+        public ActivatablePiece ActivatableComponent => _activatableComponent;
+
         private Vector3 _dragStartPos;
+        private bool _isDragging;
 
         private void Awake()
         {
             _movableComponent = GetComponent<MovablePiece>();
             _colorComponent = GetComponent<ColorPiece>();
             _clearableComponent = GetComponent<ClearablePiece>();
+            _activatableComponent = GetComponent<ActivatablePiece>();
         }
 
         public void Init(int x, int y, GameGrid gameGrid, PieceType type)
@@ -63,14 +69,29 @@ namespace Match3
         private void OnMouseDown()
         {
             _dragStartPos = transform.position;
+            _isDragging = false;
             _gameGrid.PressPiece(this);
         }
 
-        private void OnMouseUp() => _gameGrid.ReleasePiece();
+        private void OnMouseUp()
+        {
+            Vector3 dragDelta = transform.position - _dragStartPos;
+            float distance = dragDelta.magnitude;
+            float cellSize = 1.0f; // Assuming cell size is 1 unit
+
+            if (distance < cellSize * 0.5f && IsActivatable())
+            {
+                _activatableComponent.Activate();
+            }
+            else
+            {
+                _gameGrid.ReleasePiece();
+            }
+        }
 
         private void OnMouseDrag()
         {
-            if (_gameGrid.IsFilling) return;
+            if (!IsMovable() || _gameGrid.IsFilling) return;
 
             // Convert mouse position to world space
             Vector3 mousePos = Input.mousePosition;
@@ -107,10 +128,12 @@ namespace Match3
             transform.position = worldPos;
         }
 
-        public bool IsMovable() => _movableComponent != null;
+        public bool IsMovable() => _movableComponent != null && !IsActivatable();
 
         public bool IsColored() => _colorComponent != null;
 
         public bool IsClearable() => _clearableComponent != null;
+
+        public bool IsActivatable() => _activatableComponent != null;
     }
 }
