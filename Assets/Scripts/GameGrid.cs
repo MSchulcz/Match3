@@ -55,6 +55,9 @@ namespace Match3
 
         private void Awake()
         {
+            // Уменьшаем скорость падения и движения фишек на 25%
+            fillTime *= 1.25f;
+
             // populating dictionary with piece prefabs types
             _piecePrefabDict = new Dictionary<PieceType, GameObject>();
             for (int i = 0; i < piecePrefabs.Length; i++)
@@ -307,7 +310,13 @@ namespace Match3
 
         private GamePiece SpawnNewPiece(int x, int y, PieceType type)
         {
-            GameObject newPiece = Instantiate(_piecePrefabDict[type], GetWorldPosition(x, y), Quaternion.identity, this.transform);
+            GameObject prefab;
+            if (!_piecePrefabDict.TryGetValue(type, out prefab))
+            {
+                Debug.LogWarning($"Префаб для {type} не найден. Использую префаб Normal.");
+                prefab = _piecePrefabDict[PieceType.Normal];
+            }
+            GameObject newPiece = Instantiate(prefab, GetWorldPosition(x, y), Quaternion.identity, this.transform);
             _pieces[x, y] = newPiece.GetComponent<GamePiece>();
             _pieces[x, y].Init(x, y, this, type);
 
@@ -528,6 +537,78 @@ namespace Match3
                     else if (specialPieceType == PieceType.Rainbow && newPiece.IsColored())
                     {
                         newPiece.ColorComponent.SetColor(ColorType.Any);
+                    }
+                }
+            }
+
+            // Detect 2x2 square matches for RandomClear
+            Debug.Log("Проверка на 2x2 квадраты...");
+            for (int y = 0; y < yDim - 1; y++)
+            {
+                for (int x = 0; x < xDim - 1; x++)
+                {
+                    GamePiece p1 = _pieces[x, y];
+                    GamePiece p2 = _pieces[x + 1, y];
+                    GamePiece p3 = _pieces[x, y + 1];
+                    GamePiece p4 = _pieces[x + 1, y + 1];
+
+                    bool allNonNull = p1 != null && p2 != null && p3 != null && p4 != null;
+                    bool allColored = p1.IsColored() && p2.IsColored() && p3.IsColored() && p4.IsColored();
+                    bool allNormal = p1.Type == PieceType.Normal && p2.Type == PieceType.Normal && p3.Type == PieceType.Normal && p4.Type == PieceType.Normal;
+                    bool allClearable = p1.IsClearable() && p2.IsClearable() && p3.IsClearable() && p4.IsClearable();
+                    bool sameColor = allColored && p1.ColorComponent.Color == p2.ColorComponent.Color &&
+                                     p1.ColorComponent.Color == p3.ColorComponent.Color &&
+                                     p1.ColorComponent.Color == p4.ColorComponent.Color;
+
+                    if (!allNonNull)
+                    {
+                        Debug.LogWarning($"2x2 в ({x},{y}): Не все кусочки существуют (null).");
+                        continue;
+                    }
+                    if (!allColored)
+                    {
+                        string color1 = p1?.ColorComponent != null ? p1.ColorComponent.Color.ToString() : "None";
+                        string color2 = p2?.ColorComponent != null ? p2.ColorComponent.Color.ToString() : "None";
+                        string color3 = p3?.ColorComponent != null ? p3.ColorComponent.Color.ToString() : "None";
+                        string color4 = p4?.ColorComponent != null ? p4.ColorComponent.Color.ToString() : "None";
+                        Debug.LogWarning($"2x2 в ({x},{y}): Не все кусочки окрашены. Цвета: p1={color1}, p2={color2}, p3={color3}, p4={color4}");
+                        continue;
+                    }
+                    if (!allNormal)
+                    {
+                        Debug.LogWarning($"2x2 в ({x},{y}): Не все кусочки Normal. Типы: p1={p1.Type}, p2={p2.Type}, p3={p3.Type}, p4={p4.Type}");
+                        continue;
+                    }
+                    if (!allClearable)
+                    {
+                        Debug.LogWarning($"2x2 в ({x},{y}): Не все кусочки clearable.");
+                        continue;
+                    }
+                    if (!sameColor)
+                    {
+                        Debug.LogWarning($"2x2 в ({x},{y}): Цвета не совпадают. Цвет p1: {p1.ColorComponent.Color}, p2: {p2.ColorComponent.Color}, p3: {p3.ColorComponent.Color}, p4: {p4.ColorComponent.Color}");
+                        continue;
+                    }
+
+                    Debug.Log($"Найден 2x2 квадрат в ({x},{y}) с цветом {p1.ColorComponent.Color}");
+                    // Clear the 2x2 square
+                    ClearPiece(x, y);
+                    ClearPiece(x + 1, y);
+                    ClearPiece(x, y + 1);
+                    ClearPiece(x + 1, y + 1);
+                    needsRefill = true;
+
+                    // Spawn RandomClear at bottom-right position
+                    Destroy(_pieces[x + 1, y + 1]);
+                    GamePiece randomClearPiece = SpawnNewPiece(x + 1, y + 1, PieceType.RandomClear);
+                    if (randomClearPiece.IsColored())
+                    {
+                        randomClearPiece.ColorComponent.SetColor(p1.ColorComponent.Color);
+                        Debug.Log($"Создан RandomClearPiece в ({x+1},{y+1}) с цветом {p1.ColorComponent.Color}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("RandomClearPiece не окрашен!");
                     }
                 }
             }
